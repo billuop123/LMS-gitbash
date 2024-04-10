@@ -72,7 +72,7 @@
         const bookListContainer = document.getElementById("bookList");
         bookListContainer.innerHTML = "";
         let callback = (_books) => {
-          if(_books?.books){
+          if(_books?.books ){
             books = _books.books;  
           }
           else{
@@ -87,6 +87,7 @@
             bookElement.innerHTML = `
   <h3></h3>
   <p><strong>Status:</strong> ${book.status}</p>
+  <p><strong>Status:</strong> ${book.author}</p>
   <button  class="${book.status === 'available' ? 'TB' : 'ret'}">
     ${book.status === 'available' ? 'Take Book' : 'Return Book'}
   </button>
@@ -157,6 +158,7 @@ bookElement.querySelector("button").addEventListener("click",()=>{
 
           })
           }).finally(()=>{
+           books=[];
             populateBookList(); 
           })
 
