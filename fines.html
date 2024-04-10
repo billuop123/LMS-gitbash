@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <style>
+      .error {
+        display: flex;
+        justify-content: center;
+      }
+    </style>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Library Management System - Fines</title>
+    <link rel="stylesheet" href="/static/css/fines.css" />
+  </head>
+
+  <body>
+    <header>
+      <h1>Library Management System</h1>
+      <nav></nav>
+    </header>
+
+    <main>
+      <section id="fines">
+        <h2>Fines</h2>
+        <!-- Fine details and history can be displayed here -->
+        <div class="fine-details"></div>
+      </section>
+      <input type="string" placeholder="your-key" id="iKey" />
+
+      <button onclick="payFine()">Pay</button>
+      <div class="error"></div>
+    </main>
+
+    <footer>
+      <p>&copy; 2024 Library Management System</p>
+    </footer>
+
+    <script>
+      // Extract the error parameter from the URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const book = urlParams.get("book");
+      const user = urlParams.get("user");
+      const fine = urlParams.get("fine");
+      const BookId = urlParams.get("bookId");
+      const status = urlParams.get("status");
+      if (status == 1 && book && fine) {
+        const fineDetail = document.querySelector(".fine-details");
+
+        fineDetail.innerHTML = `<p>User: ${user}</p>
+                <p>Total Fines: ${fine} NRP</p>
+                <p>Details:</p>
+                <ul>
+                
+                    <li>Overdue ${book} - ${fine}NRP</li>
+                </ul>`;
+      } else {
+        const fineDetail = document.querySelector(".fine-details");
+        fineDetail.innerHTML = "No fine due";
+      }
+      const payFine = function () {
+        var key = document.querySelector("#iKey").value;
+        error_box = document.querySelector(".error");
+
+        fetch("/pay", {
+          method: "post",
+          headers: {
+            "Content-Type": "application/json",
+            // 'Content-Type': 'application/x-www-form-urlencoded',
+          },
+          body: JSON.stringify({ key: key, id: BookId }),
+        })
+          .then((one) => {
+            return one.json();
+          })
+          .then((two) => {
+            console.log(two);
+            if (two?.msg) {
+              error_box.innerText = "Payment succesfull";
+              error_box.style.color = "green";
+            } else {
+              error_box.innerText = two?.error;
+              error_box.style.color = "red";
+            }
+          });
+        setTimeout(() => {
+          error_box.innerText = "";
+        }, 2000);
+      };
+    </script>
+  </body>
+</html>

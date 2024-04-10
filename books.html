@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Take/Return Book</title>
+    <link rel="stylesheet" href="/static/css/books.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+      
+    />
+    <style>
+           p {
+    color: aliceblue;
+}
+.book{
+    color: aliceblue;
+}
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Take/Return Book</h1>
+     
+  <nav>
+    <ul>
+      <li>
+        <input type="text" id="searchInput" placeholder="Search...">
+        <button id="searchIcon"><i class="fas fa-search"></i></button>
+      </li>
+      <li>
+        Sort by:
+        <select id="sortOption">
+          <option value="title">Title</option>
+          <option value="availability">Availability</option>
+          <option value="author">Author</option>
+        </select>
+      </li>
+    </ul>
+  </nav>
+  <hr>
+    </header>
+
+    <section id="bookList">
+      <!-- JavaScript will dynamically populate this section -->
+    </section>
+
+    <footer>
+      <p>&copy; 2023 Library Management System</p>
+    </footer>
+
+    <script>
+      // Function to fetch books from the backend API
+      async function fetchBooks(callback) {
+        try {
+          const response = await fetch("/books/all");
+          const books = await response.json();
+          callback(books);
+        } catch (error) {
+          console.error(error);
+          return [];
+        }
+      }
+
+      // Sample data for books
+      let books = [];
+      
+      // Function to dynamically populate the book list
+      async function populateBookList() {
+        
+        const bookListContainer = document.getElementById("bookList");
+        bookListContainer.innerHTML = "";
+        let callback = (_books) => {
+          if(_books?.books){
+            books = _books.books;  
+          }
+          else{
+            books=_books
+          }
+
+          books.forEach((book) => {
+            const bookElement = document.createElement("div");
+            bookElement.classList.add("book");
+            book.status=book.status.trim()
+            // Display book details
+            bookElement.innerHTML = `
+  <h3></h3>
+  <p><strong>Status:</strong> ${book.status}</p>
+  <button  class="${book.status === 'available' ? 'TB' : 'ret'}">
+    ${book.status === 'available' ? 'Take Book' : 'Return Book'}
+  </button>
+`;
+bookElement.querySelector("h3").innerText = book.title;
+bookElement.querySelector("button").addEventListener("click",()=>{
+    takeReturnBook(book.title,book.status)
+})
+
+            bookListContainer.appendChild(bookElement);
+          });
+        }
+        if (books.length === 0) {
+          await fetchBooks(callback);
+        }
+        const searchInput = document.getElementById('searchInput').value.toLowerCase();
+      const sortOption = document.getElementById('sortOption').value;
+
+      const filteredBooks = books.filter(book =>
+        book.title.toLowerCase().includes(searchInput) ||
+        book.author.toLowerCase().includes(searchInput) ||
+        book.status.toLowerCase().includes(searchInput)
+      );
+
+      const sortedBooks = sortBooks(filteredBooks, sortOption);
+
+       
+        if (books.length > 0) {
+          callback(sortedBooks);
+        }
+      }
+      function sortBooks(books, option) {
+      switch (option) {
+        case 'title':
+          return books.sort((a, b) => a.title.localeCompare(b.title));
+        case 'availability':
+          return books.sort((a, b) => a.status.localeCompare(b.status));
+        case 'author':
+          return books.sort((a, b) => a.author.localeCompare(b.author));
+        default:
+          return books;
+      }
+    }
+
+    // Event listeners for input and select changes
+    document.getElementById('searchInput').addEventListener('input', populateBookList);
+    document.getElementById('sortOption').addEventListener('change', populateBookList);
+      // Function to handle taking or returning a book
+      async function takeReturnBook(title, currentState) {
+        const bookIndex = books.findIndex((book) => book.title === title);
+
+        if (bookIndex !== -1) {
+          // Update the backend data
+           fetch(`/books/all/${books[bookIndex].id}`, {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({ state: books[bookIndex].status }),
+          }).then((res)=>{
+            return res.json()
+          }).then((res)=>{
+            if(res?.error)
+            alert(res.error)
+          }).catch((err)=>{
+            return err.json().then((res)=>{
+            alert(res.error);
+
+          })
+          }).finally(()=>{
+            populateBookList(); 
+          })
+
+          
+
+          // Re-populate the book list
+        }
+      }
+
+      // Call the function to populate the book list
+      populateBookList();
+      
+    </script>
+  </body>
+</html>
+
+

@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Update/Delete Account - Library Management System</title>
+    <link rel="stylesheet" href="/static/css/userLogin.css" />
+    <style>
+      body {
+        opacity: 1;
+        transition: opacity cubic-bezier(0.1, 0.75) 0.5s;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Update/Delete Account</h1>
+    </header>
+
+    <section>
+      <h2>Update Account</h2>
+      <form action="/update-account" method="post">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required />
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required />
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required />
+
+        <button type="submit">Update Account</button>
+      </form>
+    </section>
+
+    <section>
+      <h2>Delete Account</h2>
+      <form action="/delete-account" method="post">
+        <p>
+          Are you sure you want to delete your account? This action cannot be
+          undone.
+        </p>
+        <button type="submit" onclick="return confirm('Are you sure?')">
+          Delete Account
+        </button>
+      </form>
+    </section>
+
+    <footer>
+      <p>&copy; 2023 Library Management System</p>
+    </footer>
+    <script>
+      // Extract the error parameter from the URL
+      const urlParams = new URLSearchParams(window.location.search);
+      const error = urlParams.get("error");
+      const status = urlParams.get("status");
+      const msg = urlParams.get("msg");
+      // Display the error message if it exists
+      if (error) {
+        const errorElement = document.createElement("p");
+        errorElement.style.color = "red";
+        errorElement.textContent = error;
+        document.body.appendChild(errorElement);
+      }
+      let fadeout = (msg) => {
+        const id = setInterval(() => {
+          if (document.body.style.opacity == "") {
+            document.body.style.opacity = 1;
+          }
+
+          document.body.style.opacity -= 0.06;
+          console.log(document.body.style.opacity);
+        }, 100);
+        setTimeout(() => {
+          clearInterval(id);
+          window.location.href = "/login";
+        }, 2000);
+      };
+      if (status && msg && status == "Deleted") {
+        const errorElement = document.createElement("p");
+        errorElement.style.color = "red";
+        errorElement.textContent = "Account Successfully Deleted";
+        document.body.appendChild(errorElement);
+        fadeout(msg);
+      }
+    </script>
+  </body>
+</html>

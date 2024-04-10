@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Book Management</title>
+    <link rel="stylesheet" href="static/css/bookManage.css" />
+    <!-- Include your CSS file here -->
+    <style>
+      /* Add any additional styles specific to the books page */
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 0;
+        background-color: #f4f4f4;
+      }
+
+      header {
+        background-color: #333;
+        color: white;
+        padding: 1em;
+        text-align: center;
+      }
+
+      nav {
+        background-color: #444;
+        padding: 1em;
+      }
+
+      nav ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+      }
+
+      nav ul li {
+        display: inline;
+        margin-right: 10px;
+      }
+
+      main {
+        padding: 20px;
+      }
+
+      footer {
+        background-color: #333;
+        color: white;
+        padding: 1em;
+        text-align: center;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 20px;
+      }
+
+      table,
+      th,
+      td {
+        border: 1px solid #ddd;
+      }
+
+      th,
+      td {
+        padding: 15px;
+        text-align: left;
+      }
+
+      th {
+        background-color: #444;
+        color: white;
+      }
+
+      form {
+        margin-top: 20px;
+      }
+
+      form input,
+      form button {
+        margin-bottom: 10px;
+        padding: 10px;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>Book Management</h1>
+      <!-- Add any additional header content here -->
+    </header>
+
+    <main>
+      <form id="addBookForm">
+        <label for="title">Title:</label>
+        <input type="text" id="title" name="title" required />
+
+        <label for="author">Author:</label>
+        <input type="text" id="author" name="author" required />
+
+        <button type="button" onclick="addBook()">Add Book</button>
+      </form>
+      <!-- Main content of the books page -->
+      <h2>Book List</h2>
+
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Author</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <!-- Display book list dynamically here -->
+
+          <!-- Add more rows as needed -->
+        </tbody>
+      </table>
+
+      <!-- Form to add a new book -->
+    
+    </main>
+
+    <footer>
+      <!-- Footer content, if any -->
+      &copy; 2023 Book Management
+    </footer>
+    <script>
+      let fetchbook = () => {
+        fetch("/books/all")
+          .then((response) => response.json())
+          .then((data) => {
+            const tableBody = document.querySelector("tbody");
+            tableBody.innerHTML = "";
+            data.books.forEach((book) => {
+              console.log(book);
+              const row = document.createElement("tr");
+              row.className=book.id;
+              row.innerHTML = `
+                            <td>${book.id}</td>
+                            <td class="title">${book.title}</td>
+                            <td class="author">${book.author}</td>      
+                            
+                            
+                            <td class="actions">
+                                <button onclick="editBook(${book.id})">Edit</button>
+                                <button onclick="deleteBook(${book.id})">Delete</button>
+                            </td>
+                        `;
+              tableBody.appendChild(row);
+            });
+          })
+          .catch((error) => {
+            console.error("Error fetching book data:", error);
+          });
+      };
+      document.addEventListener("DOMContentLoaded", fetchbook);
+      // Add JavaScript functions for book management (e.g., addBook, editBook, deleteBook)
+      function addBook() {
+        const title = document.getElementById("title").value;
+        const author = document.getElementById("author").value;
+
+        // Validate input (you may want to add more validation)
+        if (!title || !author) {
+          //alert("Invalid input");
+          return;
+        }
+
+        fetch("/books/add", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ title, author }),
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to add book");
+            }
+            return response.json();
+          })
+          .then((data) => {
+            //alert(data.message); // Display success message
+            // You can perform additional actions upon successful book addition if needed
+          })
+          .catch((error) => {
+            //alert(error.message); // Display error message
+          });
+        fetchbook();
+      }
+      function editBook(bookId) {
+    // Find the table row corresponding to the bookId
+  
+const row=document.querySelector(`table tbody tr.\\3${bookId}`)
+    // Get the current title and author values
+    const currentTitle = row.querySelector('.title').innerText;
+    const currentAuthor = row.querySelector('.author').innerText;
+
+    // Create input fields for editing
+    const titleInput = document.createElement('input');
+    titleInput.type = 'text';
+    titleInput.value = currentTitle;
+
+    const authorInput = document.createElement('input');
+    authorInput.type = 'text';
+    authorInput.value = currentAuthor;
+
+    // Replace the text content with input fields
+    row.querySelector('.title').innerHTML = '';
+    row.querySelector('.title').appendChild(titleInput);
+
+    row.querySelector('.author').innerHTML = '';
+    row.querySelector('.author').appendChild(authorInput);
+
+    // Create and append save and cancel buttons
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Save';
+    saveButton.addEventListener('click', () => saveEdit(bookId, titleInput.value, authorInput.value));
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.addEventListener('click', () => cancelEdit(row, currentTitle, currentAuthor));
+
+    row.querySelector('.actions').innerHTML = '';
+    row.querySelector('.actions').appendChild(saveButton);
+    row.querySelector('.actions').appendChild(cancelButton);
+}
+
+// Function to save the edited book
+function saveEdit(bookId, newTitle, newAuthor) {
+    fetch(`/books/update/${bookId}`, {
+        method: 'PUT',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ title: newTitle, author: newAuthor }),
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to edit book');
+        }
+        return response.json();
+    })
+    .then(data => {
+        //alert(data.message); // Display success message
+        // You can perform additional actions upon successful book edit if needed
+        fetchbook(); // Update the table after successful edit
+    })
+    .catch(error => {
+        ////alert(error.message); // Display error message
+        fetchbook(); // Update the table even if there's an error
+    });
+}
+
+// Function to cancel the edit and revert changes
+function cancelEdit(row, currentTitle, currentAuthor) {
+    // Revert changes to the original values
+    row.querySelector('.title').innerHTML = currentTitle;
+    row.querySelector('.author').innerHTML = currentAuthor;
+    row.querySelector('.actions').innerHTML = ''; // Remove save and cancel buttons
+}
+
+      function deleteBook(bookId) {
+        const confirmDelete = confirm(
+          "Are you sure you want to delete this book?"
+        );
+
+        if (!confirmDelete) {
+          return;
+        }
+
+        fetch(`/books/remove/${bookId}`, {
+          method: "DELETE",
+        })
+          .then((response) => {
+            if (!response.ok) {
+              throw new Error("Failed to delete book");
+            }
+            return response.json();
+          })
+          .then((data) => {
+            ////alert(data.message); // Display success message
+            // You can perform additional actions upon successful book deletion if needed
+          })
+          .catch((error) => {
+            ////alert(error.message); // Display error message
+          });
+        fetchbook();
+      }
+    </script>
+  </body>
+</html>

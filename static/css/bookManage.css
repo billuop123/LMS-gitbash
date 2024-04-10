@@ -1,0 +1,33 @@
+:root {
+    --primary: #3ECF8E;
+    --primary-dark: #37996B;
+    --primary-darker: #317F5A;
+    --text: #F9F9F9;
+    --background: #1C1C1C;
+    --secondary: #2E2E2E;
+    --gray-border: #3E3E3E;
+    --gray-border-hover: #505050;
+    --gray-menu-button: #7E7E7E;
+    --gray-menu-button-hover: #232323;
+    --navbar-height: 64px;
+    --gray-text-hover: #8F8F8F;
+    --gray-icon: #A0A0A0;
+
+}
+html{
+    background-color: #1C1C1C;
+
+}
+body {
+    font-family: 'Open Sans', sans-serif;
+    font-size: 16px;
+    background-color: var(--background);
+}
+button{
+    background-color: #317F5A;
+    border-radius: 24%;
+    
+}
+button:hover{
+    background-color: #37996B;
+}

@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Admin Dashboard</title>
+    <link rel="stylesheet" href="/static/css/userLogin.css" />
+    <!-- Include your CSS file here -->
+
+    <style>
+      img.qr {
+        height: 250px;
+        width: 250px;
+      }
+
+      .GK {
+        display: flex;
+        flex-direction: column;
+        flex-wrap: nowrap;
+        align-content: stretch;
+        justify-content: space-evenly;
+        align-items: center;
+      }
+      li {
+        color: white;
+        font-size: xx-large;
+        text-decoration: none;
+        display: block;
+      }
+      ul {
+        display: flex;
+        justify-content: center;
+        flex-direction: column;
+        align-items: center;
+      }
+      img.qr {
+    margin-top: 50px;
+    margin-bottom: 50px;
+}
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <h1>Welcome, Admin!</h1>
+      <hr />
+      <!-- Add any additional header content here -->
+    </header>
+
+    <nav>
+      <!-- Add navigation links specific to the admin dashboard -->
+      <ul>
+        <li><a href="/books/add">Add Book</a></li>
+        <li><button onclick="GenerateKey()">Generate Key</button></li>
+        <!-- Add more links as needed -->
+      </ul>
+    </nav>
+
+    <main>
+      <div>
+        <ul class="GK"></ul>
+      </div>
+      <!-- Main content of the admin dashboard -->
+      <p>
+        This is the admin dashboard. You can manage books and perform admin
+        tasks here.
+      </p>
+      <!-- Include additional HTML content specific to the admin dashboard -->
+    </main>
+
+    <footer>
+      <!-- Footer content, if any -->
+    </footer>
+
+    <script>
+      const GenerateKey = () => {
+        fetch("/genkey")
+          .then((one) => {
+            return one.json();
+          })
+          .then((t) => {
+            if (t?.key) {
+              const li = document.createElement("li");
+              li.innerText = t.key;
+              const qr = document.createElement("img");
+              qr.src = "/static/" + t.img;
+              qr.className = "qr";
+              document.querySelector(".GK").prepend(li);
+              document.querySelector(".GK").prepend(qr);
+            }
+          });
+      };
+    </script>
+    <!-- Include your JavaScript file here -->
+  </body>
+</html>

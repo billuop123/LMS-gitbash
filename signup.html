@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Sign Up - Library Management System</title>
+    <link rel="stylesheet" href="/static/css/userLogin.css" />
+  </head>
+
+  <body>
+    <header>
+      <h1>Smart Pustakalaya</h1>
+    </header>
+
+    <section>
+      <h2>Sign Up</h2>
+      <form id="signupForm" action="/signup" method="post">
+        <label for="username">Username:</label>
+        <input type="text" id="username" name="username" required />
+
+        <label for="email">Email:</label>
+        <input type="email" id="email" name="email" required />
+
+        <label for="password">Password:</label>
+        <input type="password" id="password" name="password" required />
+
+        <label for="confirmPassword">Confirm Password:</label>
+        <input
+          type="password"
+          id="confirmPassword"
+          name="confirmPassword"
+          required
+        />
+
+        <button type="submit">Sign Up</button>
+      </form>
+
+      <p>Already have an account? <a href="userLogin.html">Login</a></p>
+    </section>
+
+    <footer>
+      <p>&copy; 2023 Library Management System</p>
+    </footer>
+
+  </body>
+  <script>
+    // Extract the error parameter from the URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const error = urlParams.get('error');
+
+    // Display the error message if it exists
+    if (error) {
+      const errorElement = document.createElement('p');
+      errorElement.style.color = 'red';
+      errorElement.textContent = error;
+      document.body.appendChild(errorElement);
+    }
+  </script>
+</html>

@@ -1,0 +1,850 @@
+import express from "express";
+import pg from "pg";
+import path from "path";
+import { fileURLToPath } from "url";
+import { dirname } from "path";
+import session from "express-session";
+import bodyParser from "body-parser";
+import { Hash } from "crypto";
+import qr from "qr-image";
+import fs from "fs";
+const app = express();
+const port = 5000;
+app.use(express.urlencoded({ extended: true }));
+// Connect to the SQLite database
+async function  updateHistory (req,book){
+  
+   let state=book.status === "available" ? 'returned': 'taken';
+    await db.query('insert into user_history (user_id,book_id,status)values($1,$2,$3);',[req.session.user.id,book.id,state])
+ 
+}
+const db = new pg.Client({
+  user: "postgres",
+  password: "mrcool10",
+  database: "LMS",
+  host: "localhost",
+  port: 3000,
+});
+// Middleware to parse JSON data
+app.use(bodyParser.json());
+app.use(
+  session({
+    secret: "your-secret-key",
+    resave: false,
+    saveUninitialized: true,
+  })
+);
+
+function isLoggedin(req, res,next) {
+  if (req.session.user) {
+    next();
+  } else {
+    res.redirect("/login");
+  }
+}
+// Create tables for users, admins, and books
+db.connect()
+  .then(() => {
+    console.log("Connected to PostgreSQL database");
+    createTablesAndSeedData();
+  })
+  .catch((err) => {
+    console.error("Error connecting to PostgreSQL database:", err);
+  });
+
+function createTablesAndSeedData() {
+  // Use a transaction to ensure atomicity of database operations
+  db.query("BEGIN")
+    .then(()=>{
+      return db.query(`
+      CREATE TABLE IF NOT EXISTS fineKeys (
+        id SERIAL PRIMARY KEY,
+        key VARCHAR(255)
+    );
+    ;`)
+    })
+    .then(() => {
+      return db.query(`
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    password VARCHAR(255) NOT NULL
+                )
+            `);
+    })
+    .then(() => {
+      return db.query(`
+                CREATE TABLE IF NOT EXISTS admins (
+                    id SERIAL PRIMARY KEY,
+                    username VARCHAR(255) NOT NULL,
+                    email VARCHAR(255) NOT NULL,
+                    password VARCHAR(255) NOT NULL
+                )
+            `);
+    })
+    .then(() => {
+      return db.query(`
+                CREATE TABLE IF NOT EXISTS books (
+                    id SERIAL PRIMARY KEY,
+                    title VARCHAR(255) NOT NULL,
+                    author VARCHAR(255) NOT NULL,
+                    status VARCHAR(255) DEFAULT 'available'
+                )
+            `);
+    })
+    .then(() => {
+      return db.query(
+        `
+                INSERT INTO admins (username, email, password)
+                SELECT $1, $2, $3
+                WHERE NOT EXISTS (
+                    SELECT 1 FROM admins WHERE username = $4
+                )
+            `,
+        ["admin", "admin@example.com", "adminpassword", "admin"]
+      );
+    })
+    .then(()=>{
+      return db.query(`CREATE TABLE IF NOT EXISTs user_history (
+        id SERIAL PRIMARY KEY,
+        user_id INT REFERENCES users(id) ON DELETE CASCADE,
+        book_id INT REFERENCES books(id)ON DELETE CASCADE,
+        status VARCHAR(10) CHECK (status IN ('taken', 'returned')),
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        -- Add other necessary columns as needed
+        CONSTRAINT unique_user_book UNIQUE (user_id, book_id)
+    
+    
+    );
+    `)
+    })
+    .then(() => {
+      return db.query("COMMIT");
+    })
+    .then(() => {
+      console.log("Tables created and admin data seeded successfully");
+    })
+    .catch((error) => {
+      db.query("ROLLBACK");
+      console.error("Error creating tables and seeding data:", error);
+    })
+    .finally(() => {
+      // db.end(); // Close the database connection
+    });
+}
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+// Serve static HTML files
+app.use(express.static(path.join(__dirname, ".")));
+
+// User signup route
+// Signup route
+app.post("/signup", async (req, res) => {
+  const { username, email, password ,confirmPassword} = req.body;
+
+  // Validate input (you may want to add more validation)
+  if (!username || !email || !password||!confirmPassword) {
+    return res.redirect("/signup?error=Invalid input");
+  }
+  if(confirmPassword!=password){
+    return res.redirect("/signup?error=Passwords donot match")
+  }
+
+  try {
+    // Check if the email is already registered
+    const userExists = await db.query("SELECT * FROM users WHERE email = $1", [
+      email,
+    ]);
+
+    if (userExists.rows.length > 0) {
+      return res.redirect("/signup?error=Email already exists.");
+    }
+
+    // Insert the new user into the databaselogin
+    await db.query(
+      "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)",
+      [username, email, password]
+    );
+
+    res.redirect("/login");
+  } catch (error) {
+    return res.redirect(`/signup?error=${error.message}`);
+  }
+});
+
+// User login route
+app.post("/login", async (req, res) => {
+  const { username, password } = req.body;
+console.log(req.params);
+
+  // Validate input (you may want to add more validation)
+  if (!username || !password) {
+    return res.redirect("/login?error=Invalid input");
+  }
+
+  try {
+  
+    // Check if the user exists and the password is correct
+    const user = await db.query(
+      "SELECT * FROM users WHERE username = $1 AND password = $2",
+      [username, password]
+    );
+
+    if (user.rows.length === 0) {
+      return res.redirect("/login?error=Invalid credentials");
+    }
+
+    // Save user data in the session
+    req.session.user = {
+      id: user.rows[0].id,
+      username: user.rows[0].username,
+      email: user.rows[0].email,
+    };
+    console.log(req.session.user);
+
+    res.redirect(`/user/dashboard?user=${req.session.user.username},`);
+  } catch (error) {
+    return res.redirect("/login?error=" + error.message);
+  }
+});
+
+// Logout route
+app.get("/logout", isLoggedin, (req, res) => {
+  // Destroy the session to log out the user or admin
+  req.session.destroy((err) => {
+    if (err) {
+      return res.redirect("/login?error=Log out failed");
+    }
+    res.redirect("/login?error=Successfully logged out");
+  });
+});
+
+// Admin login route
+
+// Admin login route
+app.post("/admin/login", async (req, res) => {
+  const { username, password } = req.body;
+
+  // Validate input (you may want to add more validation)
+  if (!username || !password) {
+    return res.redirect("/admin/login?error=Invalid input");
+  }
+
+  try {
+    // Check if the admin exists and the password is correct
+    const admin = await db.query(
+      "SELECT * FROM admins WHERE username = $1 AND password = $2",
+      [username, password]
+    );
+
+    if (admin.rows.length === 0) {
+      return res.redirect("/admin/login?error=Invalid credentials");
+    }
+
+    // Save admin data in the session
+    req.session.admin = {
+      id: admin.rows[0].id,
+      username: admin.rows[0].username,
+      email: admin.rows[0].email,
+    };
+
+    res.redirect("/admin/dashboard");
+  } catch (error) {
+    return res.redirect("/admin/login?error=Invalid input" + error.message);
+  }
+});
+
+// Admin seed route (for development purposes)
+app.post("/admin/seed", async (req, res) => {
+  try {
+    // Seed admin data
+    const existingAdmin = await db.query(
+      "SELECT * FROM admins WHERE username = $1",
+      ["admin"]
+    );
+
+    if (existingAdmin.rows.length === 0) {
+      await db.query(
+        "INSERT INTO admins (username, email, password) VALUES ($1, $2, $3)",
+        ["admin", "admin@example.com", "adminpassword"]
+      );
+      res.json({ message: "Admin seeded successfully" });
+    } else {
+      res.status(400).json({ error: "Admin already seeded" });
+    }
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+// Middleware to check if the user is an admin
+function isAdmin(req, res, next) {
+  if (req.session.admin) {
+    // User is an admin, allow access to the next route
+    next();
+  } else {
+    // User is not an admin, redirect or handle accordingly
+    res.redirect("/login"); // Redirect to an error page or another route
+  }
+}
+
+// Route to render bookManage.html, accessible only to admins
+app.get("/books/add", isAdmin, (req, res) => {
+  res.sendFile(path.join(__dirname, "bookManage.html"));
+});
+
+// Add book route
+app.post("/books/add", isAdmin, async (req, res) => {
+  const { title, author } = req.body;
+  
+  // Validate input (you may want to add more validation)
+  if (!title || !author) {
+    return res.redirect("/books/add?error=Provide both title and author.");
+  }
+
+  try {
+    // Insert the new book into the database
+    await db.query("INSERT INTO books (title, author) VALUES ($1, $2)", [
+      title,
+      author,
+    
+    ]);
+    
+    res.status(201).json({ message: "Book added successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Remove book route
+// Remove book route
+app.delete("/books/remove/:id", async (req, res) => {
+  const bookId = req.params.id;
+
+  try {
+    // Delete the book from the database
+    await db.query("DELETE FROM books WHERE id = $1", [bookId]);
+    res.json({ message: "Book removed successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Update book route
+app.put("/books/update/:id", isAdmin, async (req, res) => {
+  const bookId = req.params.id;
+  const { title, author } = req.body;
+
+  // Validate input (you may want to add more validation)
+  if (!title || !author) {
+    return res.status(400).json({ error: "Invalid input" });
+  }
+
+  try {
+    // Update the book in the database
+    await db.query("UPDATE books SET title = $1, author = $2 WHERE id = $3", [
+      title,
+      author,
+      bookId,
+    ]);
+    res.json({ message: "Book updated successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Mark book as taken route
+app.put("/books/taken/:id", isLoggedin, async (req, res) => {
+  const bookId = req.params.id;
+
+  try {
+    // Update the book status to 'taken' in the database
+    await db.query("UPDATE books SET status = $1 WHERE id = $2", [
+      "taken",
+      bookId,
+    ]);
+    updateHistory(req,bookId)
+    res.json({ message: "Book marked as taken successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Mark book as not returned route
+// Mark book as not returned route
+app.put("/books/returned/:id", isLoggedin, async (req, res) => {
+  const bookId = req.params.id;
+
+  try {
+    // Update the book status to 'not returned' in the database
+    await db.query("UPDATE books SET status = $1 WHERE id = $2", [
+      "returned",
+      bookId,
+    ]);
+    updateHistory(req,bookId)
+    res.json({ message: "Book marked as not returned successfully" });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User books taken route
+app.get("/user/books/taken", isLoggedin, async (req, res) => {
+  try {
+    // Retrieve books with status 'taken' for the user
+    const takenBooks = await db.query(
+      "SELECT * FROM books WHERE status = $1 ORDER BY id DESC",
+      ["taken"]
+    );
+    res.json({ takenBooks: takenBooks.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User books not returned route
+app.get("/user/books/notreturned", isLoggedin, async (req, res) => {
+  try {
+    // Retrieve books with status 'not returned' for the user
+    const notReturnedBooks = await db.query(
+      "SELECT * FROM books WHERE status = $1 ORDER BY id DESC",
+      ["not returned"]
+    );
+    res.json({ notReturnedBooks: notReturnedBooks.rows });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// User track record route
+app.get("/user/trackrecord", isLoggedin, async (req, res) => {
+  try {
+    // Retrieve user's borrowing history
+    // (Assuming you have a separate table named user_history for user's book history)
+    const trackRecord = await db.query(
+      "SELECT user_history.timestamp, user_history.status, books.title, books.author " +
+      "FROM user_history " +
+      "JOIN books ON user_history.book_id = books.id " +
+      "WHERE user_history.user_id = $1 " +
+      "ORDER BY user_history.id DESC",
+      [req.session.user.id]
+    );
+    
+    res.json({ trackRecord: trackRecord.rows });
+    
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// ... Other routes ...
+
+// Serve admin dashboard
+app.get("/admin/dashboard", isAdmin, (req, res) => {
+  // Check if the user is logged in as an admin
+  if (req.session.admin) {
+    res.sendFile(path.join(__dirname, "admin.html"));
+  } else {
+    res.status(401).json({ error: "Unauthorized access" });
+  }
+});
+
+// User dashboard route
+app.get("/user/dashboard", isLoggedin, (req, res) => {
+  // Check if the user is logged in
+  if (req.session.user) {
+    res.sendFile(path.join(__dirname, "user.html"));
+  } else {
+    res.status(401).json({ error: "Unauthorized access" });
+  }
+});
+
+// Serve login.html
+app.get("/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "userLogin.html"));
+});
+app.get("/admin/login", (req, res) => {
+  res.sendFile(path.join(__dirname, "login.html"));
+});
+// Serve signup.html
+app.get("/signup", (req, res) => {
+  res.sendFile(path.join(__dirname, "signup.html"));
+});
+
+// Serve books.html
+app.get("/books", isLoggedin,(req, res) => {
+  console.log(req.session);
+  res.sendFile(path.join(__dirname, "books.html"));
+});
+// Assume you have a database connection named 'db' and a books table
+
+// Route to get all books
+app.get("/books/all",async (req, res) => {
+  try {
+    const result = await db.query("SELECT * FROM books");
+    const books = result.rows;
+    res.json({ books });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// PUT (update) the status of a specific book by ID
+app.put("/books/all/:id", isLoggedin, async (req, res) => {
+  const bookId = req.params.id;
+  let{ state } = req.body;
+state=state.trim();
+  try {
+    // Check if the user has taken the book
+    const checkHistory = await db.query(
+      "SELECT * FROM user_history WHERE id = $1 AND book_id IS Not NULL;",
+      [req.session.user.id]
+    );
+ 
+
+    if (state === 'unavailable' && checkHistory.rows.length === 0) {
+      // User has not taken the book, proceed with the update
+      const result = await db.query(
+        "UPDATE books SET status = $1 WHERE id = $2 RETURNING *",
+        [state, bookId]
+      );
+
+      const updatedBook = result.rows[0];
+
+      if (updatedBook) {
+        // Update the user's book ID
+        await db.query(
+          "UPDATE user_history SET book_id = $1 WHERE id = $2",
+          [bookId, req.session.user.id]
+        );
+
+        // Update the borrowing history
+        updateHistory(req, updatedBook);
+
+        res.json(updatedBook);
+      } else {
+        res.status(404).json({ error: "Book not found" });
+      }
+    } else if (state === 'available' && checkHistory.rows.length > 0&&checkHistory.rows[0].book_id==bookId) {
+      // User has taken the book and is returning it, proceed with the update
+      const result = await db.query(
+        "UPDATE books SET status = $1 WHERE id = $2 RETURNING *",
+        [state, bookId]
+      );
+
+      const updatedBook = result.rows[0];
+
+      if (updatedBook) {
+        // Check if the user's current book ID matches the returned book ID
+        const currentUserBookId = await db.query(
+          "SELECT book_id FROM users WHERE id = $1",
+          [req.session.user.id]
+        );
+
+        if (currentUserBookId.rows[0].book_id === bookId) {
+          // Update the user's book ID to null
+          await db.query(
+            "UPDATE users SET book_id = null WHERE id = $1",
+            [req.session.user.id]
+          );
+        }
+
+        // Update the borrowing history
+        updateHistory(req, updatedBook);
+
+        res.json(updatedBook);
+      } else {
+        res.status(404).json({ error: "Book not found" });
+      }
+    } else {
+      // Invalid state or user has already taken/returned the book
+      res.status(403).json({ error: "Invalid operation or user has already taken/returned the book" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+
+
+// DELETE a specific book by ID
+app.delete("/books/all/:id", async (req, res) => {
+  const bookId = req.params.id;
+
+  try {
+    const result = await db.query(
+      "DELETE FROM books WHERE id = $1 RETURNING *",
+      [bookId]
+    );
+    const deletedBook = result.rows[0];
+
+    if (deletedBook) {
+      res.json(deletedBook);
+    } else {
+      res.status(404).json({ error: "Book not found" });
+    }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Internal Server Error" });
+  }
+});
+// ... Add more routes for other HTML files as needed ...
+app.get("/user/takebook/", isLoggedin,(req, res) => {
+  res.sendFile(path.join(__dirname, "books.html"));
+});
+app.get("/user/updateDelete",isLoggedin, (req, res) => {
+  res.sendFile(path.join(__dirname, "updateDelete.html"));
+});
+// ...
+
+// Handle POST request to update account
+// ...
+
+// Handle POST request to update account
+app.post("/update-account",isLoggedin, async (req, res) => {
+  const { username, email, password } = req.body;
+  const oldUsername = req.session.user;
+  console.log(oldUsername, "haha", email, password, username); // Get the oldUsername from the session
+  if (oldUsername == undefined) {
+    res.status(405).send("unauthorized");
+    return;
+  }
+
+  // Check if the new email is already associated with another account
+  const checkEmailQuery =
+    "SELECT * FROM users WHERE email = $1 AND username!= $2";
+  const checkEmailValues = [email, oldUsername.username];
+
+  // Check if the new username is already taken
+  const checkUsernameQuery =
+    "SELECT * FROM users WHERE username = $1 AND id != $2";
+  const checkUsernameValues = [username, oldUsername.id];
+
+  try {
+    const emailResult = await db.query(checkEmailQuery, checkEmailValues);
+    const usernameResult = await db.query(
+      checkUsernameQuery,
+      checkUsernameValues
+    );
+
+    if (emailResult.rows.length > 0) {
+      // Email is already associated with another account
+
+      res.redirect("/user/updateDelete?error=Email is already taken."); // Redirect back to the update/delete page
+      return;
+    }
+
+    if (usernameResult.rows.length > 0) {
+      // Username is already taken
+
+      res.redirect("/user/updateDelete?error=Username is already taken."); // Redirect back to the update/delete page
+      return;
+    }
+
+    // Perform the update logic here
+
+    const updateQuery =
+      "UPDATE users SET email = $1, password = $2,username = $3 WHERE id = $4";
+    const updateValues = [email, password, username, oldUsername.id];
+
+    await db.query(updateQuery, updateValues);
+
+    await db.query("commit");
+
+    res.status(201).json({ message: "success" });
+    // Redirect to the user dashboard or a confirmation page
+    // res.redirect('/user/updateDelete); // You can change this to the appropriate URL
+  } catch (error) {
+    console.error("Error executing query:", error.message);
+    res.status(500).send("Internal Server Error");
+  }
+});
+app.post("/delete-account", isLoggedin, async (req, res) => {
+  const username = req.session.user.username;
+
+  try {
+    // Find the user with the provided username
+    const result = await db.query("SELECT * FROM users WHERE username = $1", [
+      username,
+    ]);
+
+    if (result.rows.length > 0) {
+      // If the user is found, remove them from the database
+      await db.query("DELETE FROM users WHERE username = $1", [username]);
+
+      // Destroy the current session to remove the user
+      req.session.destroy((err) => {
+        if (err) {
+          console.error(err);
+          res.status(500).send("Internal Server Error");
+        } else {
+          // Redirect to the login page with a success message
+          res.redirect("/user/updateDelete?status=Deleted&msg=%30login");
+        }
+      });
+    } else {
+      // If the user is not found, send an error response
+      res.status(404).send("User not found");
+    }
+  } catch (err) {
+    console.error(err);
+    res.status(500).send("Internal Server Error");
+  }
+});
+
+app.get("/user/history",isLoggedin, (req, res) => {
+  res.sendFile(path.join(__dirname, "history.html"));
+});
+app.get('/user/fines', async (req, res) => {
+  try {
+    // Get user information
+    const userId = req.session.user.id;
+
+    // Find overdue books for the user
+    const overdueBooks = await findOverdueBooks(userId);
+
+    // Calculate fines
+    const totalFines = calculateFines(overdueBooks);
+if(overdueBooks.length>0){ res.redirect(`/user/fines_display?status=1&book=${overdueBooks[0].title}&bookId=${overdueBooks[0].id}&fine=${totalFines}&user=${req.session.user.username}`)}
+    // Display fines to the user
+  else{
+    res.redirect(`/user/fines_display?status=0`)
+  }
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Route to pay fines
+app.post('/user/pay-fines', async (req, res) => {
+  try {
+    // Implement logic to process payment and update database
+    const userId = req.session.user.id;
+    // Your payment processing logic goes here...
+
+    res.send('Payment successful!');
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Route to cancel fines
+app.post('/user/cancel-fines', async (req, res) => {
+  try {
+    // Implement logic to cancel fines and update database
+   
+    const userId = req.session.user.id;
+    // Your cancellation logic goes here...
+
+    res.send('Fines canceled successfully!');
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+// ...
+app.get("/user/fines_display",isLoggedin,(req,res)=>{
+  res.sendFile(path.join(__dirname,"fines.html"))
+})
+async function findOverdueBooks(userId) {
+  const overdueBooksQuery = `
+  SELECT b.*,uh.*
+  FROM books b
+  INNER JOIN user_history uh ON b.id = uh.book_id
+  WHERE uh.user_id = $1
+  AND uh.timestamp < NOW()
+  AND uh.status = 'taken';
+  `;
+
+  const { rows: overdueBooks } = await db.query(overdueBooksQuery, [userId]);
+  return overdueBooks;
+}
+
+// Function to calculate fines based on overdue books
+function calculateFines(overdueBooks) {
+  const finePerDay = 10; // Adjust as needed
+
+  let totalFines = 0;
+
+  overdueBooks.forEach((book) => {
+    const daysOverdue = Math.floor((new Date() - new Date(book.timestamp)) / (1000 * 60 * 60 * 24));
+    if(daysOverdue>7){
+    totalFines += (daysOverdue-7) * finePerDay;}
+  });
+
+  return totalFines;
+}
+app.post("/pay", isLoggedin, async (req, res) => {
+  const { key, id } = req.body;
+  try {
+    const keyFound = await db.query("SELECT * FROM fineKeys WHERE key = $1", [key]);
+
+    if (keyFound?.rowCount > 0) {
+      await db.query("DELETE FROM fineKeys WHERE key = $1", [key]);
+
+      let v = await db.query(`
+        UPDATE user_history
+        SET status = $1
+        FROM (
+          SELECT id
+          FROM user_history
+          WHERE book_id = $2 AND status != $3
+          ORDER BY "timestamp" ASC
+          LIMIT 1
+        ) AS subquery
+        WHERE user_history.id = subquery.id;
+      `, ["returned", id, "returned"]);
+
+      if (v.rowCount === 0) {
+        // No payment required
+        return res.status(400).json({ "error": "No payment required" });
+      }
+
+      res.status(200).json({ "msg": "Payment successful" });
+    } else {
+      res.status(400).json({ "error": "Key did not match" });
+    }
+  } catch (e) {
+    res.status(500).json({ "error": "Server Error 500" });
+  }
+});
+
+function makeid(length) {
+  let result = '';
+  const characters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789';
+  const charactersLength = characters.length;
+  let counter = 0;
+  while (counter < length) {
+    result += characters.charAt(Math.floor(Math.random() * charactersLength));
+    counter += 1;
+  }
+  return result;
+}
+const genQr=function(key){
+  var qr_svg = qr.image(key);
+  qr_svg.pipe(fs.createWriteStream(path.join(__dirname,"static",key+".png")));
+  return key+".png";
+  }
+
+app.get("/genkey",isAdmin,async(req,res)=>{
+  const key = makeid(25);
+  try{
+    await db.query("Insert into fineKeys(key) values($1);",[key]);
+  res.status(200).json({"key":key,"img":genQr(key)})
+ }catch (e){
+  console.log(e);
+  res.status(500).json({"error":"error saving the key"})
+  
+ }
+ 
+ })
+
+
+
+
+
+app.listen(port, () => {
+  console.log(`Server is running at http://localhost:${port}`);
+});

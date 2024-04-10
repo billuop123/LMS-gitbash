@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>User Dashboard - Library Management System</title>
+    <link rel="stylesheet" href="/static/css/userLogin.css" />
+    <style>
+        ul {
+    display: flex;
+    color: #3ECF8E;
+    align-content: stretch;
+    justify-content: space-around;
+}
+    </style>
+  </head>
+
+  <body>
+    <header class="edit">
+      
+    </header>
+
+    <nav>
+      <ul>
+        <li><a href="/user/takebook/">Take/Return Book</a></li>
+        <li><a href="/user/history">History</a></li>
+        <li><a href="/user/fines/">Fines</a></li>
+        <li><a href="/user/updateDelete/">Update/Delete Account</a></li>
+      </ul>
+
+    </nav>
+    <hr>
+
+    <section>
+      <h2>Take/Return Book</h2>
+      <!-- Add your content for taking/returning books here -->
+    </section>
+
+    <section>
+      <h2>History</h2>
+      <!-- Add your content for user history here -->
+    </section>
+
+    <section>
+      <h2>Fines</h2>
+      <!-- Add your content for user fines here -->
+    </section>
+
+    <section>
+      <h2>Update/Delete Account</h2>
+      <!-- Add your content for updating/deleting user account here -->
+    </section>
+
+    <footer>
+      <p>&copy; 2023 Library Management System</p>
+    </footer>
+  </body>
+  <script>
+    const urlParams = new URLSearchParams(window.location.search);
+    const user=urlParams.get('user');
+    const edit=document.querySelector('.edit')
+    edit.innerHTML=`<h1>Welcome ${user}</h1>` 
+    
+  </script>
+</html>
